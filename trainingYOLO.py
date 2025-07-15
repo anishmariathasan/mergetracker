@@ -1,4 +1,4 @@
-# a simple script to train my YOLOv11n model with the labelled images in the merge_detect folder
+# a simple script using ultralytics to train my YOLOv11n model with the labelled images in the merge_detect folder
 import os
 from ultralytics import YOLO
 
@@ -9,8 +9,12 @@ data_path = os.path.join(script_dir, 'merge_detect', 'data.yaml')
 model = YOLO('yolo11n.pt')
 
 if __name__ == '__main__':
-    # Train the model
-    model.train(data=data_path, epochs=60, imgsz=640, batch=16, device='0')
+    # Train the model (ultralytics handles the training process)
+    model.train(data=data_path, epochs=270, imgsz=640, batch=16, device='0')
 
-    # Validate after training (includes val and test defined in data.yaml)
+    # Validate after training (only on val as defined in data.yaml)
     model.val(data=data_path, imgsz=640, batch=16, device='0')
+
+    #test the model on the test dataset 
+    print("testing the model on the test dataset...")
+    model.val(data=data_path, split='test', imgsz=640, batch=16, device='0')
