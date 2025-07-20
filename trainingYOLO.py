@@ -6,11 +6,12 @@ from ultralytics import YOLO
 script_dir = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.join(script_dir, 'merge_detect', 'data.yaml')
 
-model = YOLO('yolo11n.pt')
+# Choosing model variety
+model = YOLO('yolo11m.pt')
 
 if __name__ == '__main__':
     # Train the model (ultralytics handles the training process)
-    model.train(data=data_path, epochs=270, imgsz=640, batch=16, device='0')
+    model.train(data=data_path, epochs=120, imgsz=640, batch=16, device='0')
 
     # Validate after training (only on val as defined in data.yaml)
     model.val(data=data_path, imgsz=640, batch=16, device='0')

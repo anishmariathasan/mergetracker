@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 
 #gets absolute path of this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-weights_path = os.path.join(script_dir, 'best.pt')
+weights_path = os.path.join(script_dir, 'bestv11m.pt')
 
 model = YOLO(weights_path)
 

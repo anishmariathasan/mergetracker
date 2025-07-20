@@ -3,8 +3,10 @@ import cv2, os
 
 #gets absolute path of this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-weights_path = os.path.join(script_dir, 'best.pt')
-
+#for the nano model
+#weights_path = os.path.join(script_dir, 'best.pt')
+#for the medium model 
+weights_path = os.path.join(script_dir, 'bestv11m.pt')
 model = YOLO(weights_path)
 
 live = input("Do you want to use a live camera feed? (y/n): ")
@@ -29,7 +31,7 @@ while cap.isOpened():
     if not success:
         break
 
-    # Run YOLOv8 tracking on the frame, persisting tracks between frames
+    # Run YOLOv11n tracking on the frame, persisting tracks between frames
     results = model.track(frame, persist=True, device='0')
 
     # Visualise the results on the frame
@@ -59,3 +61,4 @@ while cap.isOpened():
 
 cap.release()
 cv2.destroyAllWindows()
+print("finished scanning live image feed")
