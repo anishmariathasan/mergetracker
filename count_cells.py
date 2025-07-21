@@ -4,26 +4,31 @@ from collections import defaultdict, deque
 
 #gets absolute path of this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-weights_path = os.path.join(script_dir, 'bestv11m.pt')
+weights_path = os.path.join(script_dir, 'bestm120.pt')
 
 model = YOLO(weights_path)
 
-live = input("Do you want to use a live camera feed? (y/n): ")
+live = input("Do you want to use a live camera feed? (y/n/test): ").strip().lower()
 if live == 'y':
-    # 2. Open the live camera feed
-    cap = cv2.VideoCapture(0)  # 0 for the default camera
-# 2. Specify the path to your new video
+    cap = cv2.VideoCapture(0)
+elif live == "test":
+    print("using the test video defined in script")
+    cap = cv2.VideoCapture(r"C:\Users\anish_0fykajq\OneDrive\Documents\Internships\ABIC\merge_detector\2530fps_junct_30pbfps.mp4")
 else:
     print("Using video file...")
     video_path = input("enter the path to your video file: ")
+    print(f"Trying to open: {video_path}")
     cap = cv2.VideoCapture(video_path)
 
+if not cap.isOpened():
+    print("Failed to open video/camera.")
+    exit()
 
-# Store the track history in the lambda funciton
+# track last frames with lambda
 track_history = defaultdict(lambda: [])
 
-# Define the vertical line (ROI) for counting
-# We'll count cells crossing the horizontal centre of the frame
+#define the vertical line (ROI) for counting
+# count cells crossing the horizontal centre of the frame
 roi_line_x = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) * 2 / 3)
 
 # Initialise counters
@@ -34,13 +39,51 @@ small_count = 0
 crossing_scenarios = deque(maxlen=20)
 triggered = False
 
+# Grab the first frame for ROI and line selection
+ret, first_frame = cap.read()
+if not ret:
+    print("Failed to read from video/camera.")
+    exit()
+
+# Let user select ROI
+roi = cv2.selectROI("Select ROI", first_frame, showCrosshair=True, fromCenter=False)
+cv2.destroyWindow("Select ROI")
+x, y, w, h = roi
+
+# Let user click to select vertical line position within ROI
+def click_event(event, mx, my, flags, param):
+    global roi_line_x
+    if event == cv2.EVENT_LBUTTONDOWN:
+        roi_line_x = mx
+        cv2.destroyWindow("Click vertical line position")
+
+roi_frame = first_frame[y:y+h, x:x+w].copy()
+cv2.imshow("Click vertical line position", roi_frame)
+cv2.setMouseCallback("Click vertical line position", click_event)
+cv2.waitKey(0)
+
+# If user didn't click, default to 2/3 of ROI width
+try:
+    roi_line_x
+except NameError:
+    roi_line_x = int(w * 2 / 3)
+
+track_history = defaultdict(lambda: [])
+large_count = 0
+small_count = 0
+crossing_scenarios = deque(maxlen=20)
+triggered = False
+
 while cap.isOpened():
     success, frame = cap.read()
     if not success:
         break
 
+    # Crop to ROI
+    roi_frame = frame[y:y+h, x:x+w]
+
     # Run YOLO tracking
-    results = model.track(frame, persist=True)
+    results = model.track(roi_frame, persist=True)
     
     # Get the boxes and track IDs
     try:
@@ -48,22 +91,21 @@ while cap.isOpened():
         track_ids = results[0].boxes.id.int().cpu().tolist()
         labels = results[0].boxes.cls.int().cpu().tolist()
     except AttributeError:
-        # If no objects are detected, boxes or id might be None
         track_ids = []
         labels = []
 
     # Visualise the results on the frame
     annotated_frame = results[0].plot()
 
-    # Draw the ROI line on the frame
-    cv2.line(annotated_frame, (roi_line_x, 0), (roi_line_x, frame.shape[0]), (0, 255, 0), 2)
+    # Draw the ROI vertical line
+    cv2.line(annotated_frame, (roi_line_x, 0), (roi_line_x, annotated_frame.shape[0]), (0, 255, 0), 2)
 
     # Plot the tracks and count crossings
     for box, track_id, label in zip(boxes, track_ids, labels):
-        x, y, w, h = box
+        x_box, y_box, w_box, h_box = box
         track = track_history[track_id]
-        track.append((float(x), float(y), label))
-        if len(track) > 3000:  # Keep history for the last 3000 frames
+        track.append((float(x_box), float(y_box), label))
+        if len(track) > 3000:
             track.pop(0)
 
         # Check for ROI crossing (vertical line)
@@ -73,31 +115,22 @@ while cap.isOpened():
             prev_label = track[-2][2]
             curr_label = track[-1][2]
 
-            # Only count when crossing from left to right
             if prev_x < roi_line_x and curr_x >= roi_line_x:
-                # Count large vs small
-                if curr_label == 0:  # Assuming 0 = small, 1 = large
+                if curr_label == 0:
                     small_count += 1
                 elif curr_label == 1:
                     large_count += 1
 
-                # Scenario: NOT small then large
                 scenario = not (prev_label == 0 and curr_label == 1)
                 crossing_scenarios.append(scenario)
 
-                # Optional: draw a circle on crossing
-                cv2.circle(annotated_frame, (int(x), int(y)), 5, (0, 0, 255), -1)
-
-    # Trigger signal if >5 NOT small then large in last 20 crossings
     if len(crossing_scenarios) == 20 and sum(crossing_scenarios) > 5 and not triggered:
         print("Signal triggered: More than 5 NOT small then large scenarios in last 20 crossings!")
-        triggered = True  # Prevent repeated triggers
+        triggered = True
 
-    # Display the counts on the frame
     cv2.putText(annotated_frame, f"Large: {large_count}", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
     cv2.putText(annotated_frame, f"Small: {small_count}", (50, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-    # Display the annotated frame
     cv2.imshow("Directional Cell Counter", annotated_frame)
 
     if cv2.waitKey(1) & 0xFF == ord("q"):

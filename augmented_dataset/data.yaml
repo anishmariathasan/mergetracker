@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['L', 'S']
+
+roboflow:
+  workspace: abic
+  project: merge_detector
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/abic/merge_detector/dataset/3
