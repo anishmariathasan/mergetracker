@@ -4,7 +4,7 @@ from collections import defaultdict, deque
 
 #gets absolute path of this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-weights_path = os.path.join(script_dir, 'bestm120.pt')
+weights_path = os.path.join(script_dir, 'bestmaug100.pt')
 
 model = YOLO(weights_path)
 
@@ -39,6 +39,11 @@ small_count = 0
 crossing_scenarios = deque(maxlen=20)
 triggered = False
 
+# Add these before the while loop
+last_cross_label = None
+pair_history = deque(maxlen=20)
+triggered = False
+
 # Grab the first frame for ROI and line selection
 ret, first_frame = cap.read()
 if not ret:
@@ -71,6 +76,9 @@ except NameError:
 track_history = defaultdict(lambda: [])
 large_count = 0
 small_count = 0
+pair_count = 0
+incorrect_pair = 0
+#more efficient than a list (doubly linked list)
 crossing_scenarios = deque(maxlen=20)
 triggered = False
 
@@ -100,7 +108,7 @@ while cap.isOpened():
     # Draw the ROI vertical line
     cv2.line(annotated_frame, (roi_line_x, 0), (roi_line_x, annotated_frame.shape[0]), (0, 255, 0), 2)
 
-    # Plot the tracks and count crossings
+    #plot the tracks and count crossings
     for box, track_id, label in zip(boxes, track_ids, labels):
         x_box, y_box, w_box, h_box = box
         track = track_history[track_id]
@@ -114,12 +122,23 @@ while cap.isOpened():
             curr_x = track[-1][0]
             prev_label = track[-2][2]
             curr_label = track[-1][2]
+            
 
             if prev_x < roi_line_x and curr_x >= roi_line_x:
                 if curr_label == 0:
                     small_count += 1
                 elif curr_label == 1:
                     large_count += 1
+
+                # Pair counting logic
+                if last_cross_label is not None:
+                    if last_cross_label == 1 and curr_label == 0:  # large then small
+                        pair_history.append(False)  # correct pair
+                    else:
+                        pair_history.append(True)   # incorrect pair
+                last_cross_label = curr_label  # update for next crossing
+
+    
 
                 scenario = not (prev_label == 0 and curr_label == 1)
                 crossing_scenarios.append(scenario)
@@ -128,8 +147,14 @@ while cap.isOpened():
         print("Signal triggered: More than 5 NOT small then large scenarios in last 20 crossings!")
         triggered = True
 
+    if len(pair_history) == 20 and sum(pair_history) > 3 and not triggered:
+        print("Signal triggered: More than 3 incorrect pairs in last 20!")
+        triggered = True
+
     cv2.putText(annotated_frame, f"Large: {large_count}", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
     cv2.putText(annotated_frame, f"Small: {small_count}", (50, 120), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    cv2.putText(annotated_frame, f"Incorrect pairs (last 20): {sum(pair_history)}", (50, 160), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(annotated_frame, f"Total pairs: {len(pair_history)}", (50, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
     cv2.imshow("Directional Cell Counter", annotated_frame)
 

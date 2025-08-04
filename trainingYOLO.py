@@ -8,7 +8,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 data_path = os.path.join(script_dir, 'augmented_dataset', 'data.yaml')
 
 # Choosing model variety
-model = YOLO('yolo11n.pt')
+model = YOLO('yolo11m.pt')
 
 if __name__ == '__main__':
     # Train the model (ultralytics handles the training process)
